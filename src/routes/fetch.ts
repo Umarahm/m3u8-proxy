@@ -11,8 +11,8 @@ router.get("/", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "No URL provided" });
   }
 
-  // if vtt file, return it directly
-  if (url.endsWith(".vtt")) {
+  // if vtt or key file, return it directly
+  if (url.endsWith(".vtt") || url.endsWith(".key")) {
     try {
       const response = await axios({
         method: "get",
@@ -21,38 +21,14 @@ router.get("/", async (req: Request, res: Response) => {
         headers: ref ? { Referer: ref as string } : {},
       });
 
-      res.setHeader("Content-Type", "text/vtt");
+      const contentType = url.endsWith(".vtt")
+        ? "text/vtt"
+        : "application/octet-stream";
+      res.setHeader("Content-Type", contentType);
       res.setHeader("Content-Disposition", "inline");
       res.send(response.data);
     } catch (error) {
       console.clear();
-      console.log(`[ERROR] ${error}`);
-      if (axios.isAxiosError(error)) {
-        console.error("Axios error details:", {
-          message: error.message,
-          response: error.response?.data,
-          headers: error.config?.headers ?? {},
-        });
-      }
-      res.status(500).json({ error: "Failed to proxy content" });
-    }
-    return;
-  }
-
-  // if .key file return it directly
-  if (url.endsWith(".key")) {
-    try {
-      const response = await axios({
-        method: "get",
-        url,
-        responseType: "arraybuffer",
-        headers: ref ? { Referer: ref as string } : {},
-      });
-
-      res.setHeader("Content-Type", "application/octet-stream");
-      res.setHeader("Content-Disposition", "inline");
-      res.send(response.data);
-    } catch (error) {
       console.log(`[ERROR] ${error}`);
       if (axios.isAxiosError(error)) {
         console.error("Axios error details:", {
@@ -92,95 +68,91 @@ router.get("/", async (req: Request, res: Response) => {
       return;
     }
 
-    // if (contentType.includes("application/vnd.apple.mpegurl")) {
-      let m3u8Content = response.data.toString("utf-8");
+    let m3u8Content = response.data.toString("utf-8");
 
-      const baseFetchUrl = `https://${req.get("host")}/fetch?url=`;
-      const baseSegmentUrl = `https://${req.get("host")}/fetch/segment?url=`;
+    const baseFetchUrl = `https://${req.get("host")}/fetch?url=`;
+    const baseSegmentUrl = `https://${req.get("host")}/fetch/segment?url=`;
 
-      const lines = m3u8Content.split("\n");
+    const lines = m3u8Content.split("\n");
 
-      const processedLines = lines.map((line) => {
-          const trimmedLine = line.trim();
+    const processedLines = lines.map((line) => {
+      const trimmedLine = line.trim();
 
-          // Keep empty lines and the endlist tag as they are
-          if (!trimmedLine || trimmedLine.startsWith("#EXT-X-ENDLIST")) {
-              return trimmedLine;
-          }
+      // Keep empty lines and the endlist tag as they are
+      if (!trimmedLine || trimmedLine.startsWith("#EXT-X-ENDLIST")) {
+        return trimmedLine;
+      }
 
-          // Rewrite the URI for encryption keys
-          if (trimmedLine.startsWith("#EXT-X-KEY")) {
-              return trimmedLine.replace(/URI="([^"]+)"/, (match, uri) => {
-                  const absoluteUrl = new URL(uri, url).href;
-                  let final = `${baseSegmentUrl}${encodeURIComponent(absoluteUrl)}`;
-                  if (ref) {
-                      final = `${final}&ref=${encodeURIComponent(ref as string)}`;
-                  }
-                  return `URI="${final}"`;
-              });
-          }
-
-          // Rewrite URLs for alternate playlists (master playlist pointing to other playlists)
-          if (trimmedLine.endsWith(".m3u8")) {
-              const absoluteUrl = new URL(trimmedLine, url).href;
-              let final = `${baseFetchUrl}${encodeURIComponent(absoluteUrl)}`;
-              if (ref) {
-                  final = `${final}&ref=${encodeURIComponent(ref as string)}`;
-              }
-              return final;
-          }
-
-          // Keep all other directives (lines starting with #) as they are
-          if (trimmedLine.startsWith("#")) {
-              return trimmedLine;
-          }
-
-          // --- At this point, the line must be a media segment URL ---
-          // This single block handles all possible segment formats (full URLs, relative paths, etc.)
-          const absoluteUrl = new URL(trimmedLine, url).href;
+      // Rewrite the URI for encryption keys
+      if (trimmedLine.startsWith("#EXT-X-KEY")) {
+        return trimmedLine.replace(/URI="([^"]+)"/, (match, uri) => {
+          const absoluteUrl = new URL(uri, url as string).href;
           let final = `${baseSegmentUrl}${encodeURIComponent(absoluteUrl)}`;
           if (ref) {
-              final = `${final}&ref=${encodeURIComponent(ref as string)}`;
+            final = `${final}&ref=${encodeURIComponent(ref as string)}`;
           }
-          return final;
-      });
+          return `URI="${final}"`;
+        });
+      }
+      
+      // Rewrite the URI for media playlists (audio, subtitles)
+      if (trimmedLine.startsWith("#EXT-X-MEDIA")) {
+        return trimmedLine.replace(/URI="([^"]+)"/, (match, uri) => {
+          const absoluteUrl = new URL(uri, url as string).href;
+          let final = `${baseFetchUrl}${encodeURIComponent(absoluteUrl)}`;
+          if (ref) {
+            final = `${final}&ref=${encodeURIComponent(ref as string)}`;
+          }
+          return `URI="${final}"`;
+        });
+      }
 
-      console.log(`Processed ${processedLines.length}!`)
+      // Rewrite the URI for i-frame playlists
+      if (trimmedLine.startsWith("#EXT-X-I-FRAME-STREAM-INF")) {
+        return trimmedLine.replace(/URI="([^"]+)"/, (match, uri) => {
+          const absoluteUrl = new URL(uri, url as string).href;
+          let final = `${baseFetchUrl}${encodeURIComponent(absoluteUrl)}`;
+          if (ref) {
+            final = `${final}&ref=${encodeURIComponent(ref as string)}`;
+          }
+          return `URI="${final}"`;
+        });
+      }
 
-      const finalM3u8 = processedLines.join("\n");
+      // Rewrite URLs for alternate playlists (master playlist pointing to other playlists)
+      if (trimmedLine.includes(".m3u8")) {
+        const absoluteUrl = new URL(trimmedLine, url as string).href;
+        let final = `${baseFetchUrl}${encodeURIComponent(absoluteUrl)}`;
+        if (ref) {
+          final = `${final}&ref=${encodeURIComponent(ref as string)}`;
+        }
+        return final;
+      }
 
-      res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
-      res.setHeader("Content-Disposition", "inline");
-      res.setHeader("Connection", "Keep-Alive");
-      res.send(finalM3u8);
-      return;
-  // }
+      // Keep all other directives (lines starting with #) as they are
+      if (trimmedLine.startsWith("#")) {
+        return trimmedLine;
+      }
 
-    // res.setHeader("Content-Type", contentType);
-    // res.setHeader("Content-Disposition", "inline");
+      // --- At this point, the line must be a media segment URL ---
+      // This single block handles all possible segment formats (full URLs, relative paths, etc.)
+      const absoluteUrl = new URL(trimmedLine, url as string).href;
+      let final = `${baseSegmentUrl}${encodeURIComponent(absoluteUrl)}`;
+      if (ref) {
+        final = `${final}&ref=${encodeURIComponent(ref as string)}`;
+      }
+      return final;
+    });
 
-    // // finally there is also a mon.key file which we need to proxy
-    // let final = response.data;
-    // final = final.replace(/([^\s]+\.key)/g, (match: string) => {
-    //   const absoluteUrl = new URL(match, url).href;
-    //   const baseFetchUrl = `https://${req.get("host")}/fetch?url=`;
-    //   let final = `${baseFetchUrl}${encodeURIComponent(absoluteUrl)}`;
-    //   if (ref) {
-    //     final = `${final}&ref=${encodeURIComponent(ref)}`;
-    //   }
-    //   return final;
-    // });
+    console.log(`Processed ${processedLines.length}!`);
 
-    // remove line which starts with #EXT-X-KEY:METHOD
-    // final = final
-    //   .split("\n")
-    //   .filter((line) => {
-    //     return !line.startsWith("#EXT-X-KEY:METHOD");
-    //   })
-    //   .join("\n");
+    const finalM3u8 = processedLines.join("\n");
 
-    // pass through the content
-    // res.send(final);
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Content-Disposition", "inline");
+    res.setHeader("Connection", "Keep-Alive");
+    res.send(finalM3u8);
+    return;
   } catch (error) {
     console.log(`[ERROR] ${error}`);
     if (axios.isAxiosError(error)) {
