@@ -94,7 +94,7 @@ router.get("/", async (req: Request, res: Response) => {
           return `URI="${final}"`;
         });
       }
-      
+
       // Rewrite the URI for media playlists (audio, subtitles)
       if (trimmedLine.startsWith("#EXT-X-MEDIA")) {
         return trimmedLine.replace(/URI="([^"]+)"/, (match, uri) => {
@@ -178,7 +178,17 @@ router.get("/segment", async (req: Request, res: Response) => {
   console.log(`[INFO] Referrer: ${ref}`);
   let response: any;
   try {
-    let headers = ref ? { Referer: ref as string, Origin: ref as string } : {};
+    let headers = ref
+      ? {
+          Referer: ref as string,
+          Origin: ref as string,
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
+        }
+      : {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
+        };
     response = await axios({
       method: "get",
       url,
@@ -303,10 +313,13 @@ router.get("/hianime", async (req: Request, res: Response) => {
       method: "get",
       url,
       responseType: responseType,
-      headers: ref ? { 
-        Referer: ref as string,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-       } : {},
+      headers: ref
+        ? {
+            Referer: ref as string,
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+          }
+        : {},
     });
 
     console.log(`[INFO] CONTENT TYPE: ${contentType}`);
