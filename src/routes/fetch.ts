@@ -52,8 +52,8 @@ router.get("/", async (req: Request, res: Response) => {
       contentType?.startsWith("image/") || contentType?.includes("arraybuffer")
         ? "arraybuffer"
         : contentType?.includes("json")
-        ? "json"
-        : "text";
+          ? "json"
+          : "text";
 
     const response = await axios({
       method: "get",
@@ -70,8 +70,12 @@ router.get("/", async (req: Request, res: Response) => {
 
     let m3u8Content = response.data.toString("utf-8");
 
-    const baseFetchUrl = `https://${req.get("host")}/fetch?url=`;
-    const baseSegmentUrl = `https://${req.get("host")}/fetch/segment?url=`;
+    // Use the incoming request protocol (http/https) instead of hardcoding https.
+    // This avoids SSL errors in local/dev environments that only serve HTTP.
+    const protocol = req.protocol;
+    const baseOrigin = `${protocol}://${req.get("host")}`;
+    const baseFetchUrl = `${baseOrigin}/fetch?url=`;
+    const baseSegmentUrl = `${baseOrigin}/fetch/segment?url=`;
 
     const lines = m3u8Content.split("\n");
 
@@ -180,15 +184,15 @@ router.get("/segment", async (req: Request, res: Response) => {
   try {
     let headers = ref
       ? {
-          Referer: ref as string,
-          Origin: ref as string,
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
-        }
+        Referer: ref as string,
+        Origin: ref as string,
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
+      }
       : {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
-        };
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0",
+      };
     response = await axios({
       method: "get",
       url,
@@ -205,8 +209,8 @@ router.get("/segment", async (req: Request, res: Response) => {
     const contentType = url.includes(".jpg")
       ? "image/jpeg"
       : url.includes("mon.key")
-      ? response.headers["content-type"] || "video/MP2T"
-      : "video/MP2T";
+        ? response.headers["content-type"] || "video/MP2T"
+        : "video/MP2T";
 
     res.setHeader("Content-Type", contentType);
     if (response.headers["content-length"]) {
@@ -306,8 +310,8 @@ router.get("/hianime", async (req: Request, res: Response) => {
       contentType?.startsWith("image/") || contentType?.includes("arraybuffer")
         ? "arraybuffer"
         : contentType?.includes("json")
-        ? "json"
-        : "text";
+          ? "json"
+          : "text";
 
     const response = await axios({
       method: "get",
@@ -315,10 +319,10 @@ router.get("/hianime", async (req: Request, res: Response) => {
       responseType: responseType,
       headers: ref
         ? {
-            Referer: ref as string,
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-          }
+          Referer: ref as string,
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        }
         : {},
     });
 
@@ -335,8 +339,11 @@ router.get("/hianime", async (req: Request, res: Response) => {
     let m3u8Content = response.data.toString("utf-8");
 
     /// i forgor 😭
-    const baseFetchUrl = `https://${req.get("host")}/fetch/hianime?url=`;
-    const baseSegmentUrl = `https://${req.get("host")}/fetch/segment?url=`;
+    // Use incoming protocol instead of hardcoding https to prevent SSL errors.
+    const protocol = req.protocol;
+    const baseOrigin = `${protocol}://${req.get("host")}`;
+    const baseFetchUrl = `${baseOrigin}/fetch/hianime?url=`;
+    const baseSegmentUrl = `${baseOrigin}/fetch/segment?url=`;
 
     // hianime starts sub m3u8s with index- so we make it OUR_URL/their_url/(replace master.m3u8 with this: index-*)
     const hianimeURL = url.substring(0, url.lastIndexOf("/"));
