@@ -20,6 +20,14 @@
   },
   "scripts": {
     "start": "bun src/index.ts",
-    "dev": "bun src/index.ts --watch"
-  }
+    "dev": "bun src/index.ts --watch",
+    "start:5009": "bun src/index.ts --port 5009"
+  },
+  "keywords": [
+    "m3u8",
+    "proxy",
+    "streaming",
+    "cors",
+    "hls"
+  ]
 }

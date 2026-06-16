@@ -4,6 +4,25 @@ import https from "https";
 
 const router = Router();
 
+const getProxyBaseOrigin = (req: Request): string => {
+  const forwardedProtoHeader = req.headers["x-forwarded-proto"];
+  const forwardedProto = Array.isArray(forwardedProtoHeader)
+    ? forwardedProtoHeader[0]
+    : forwardedProtoHeader?.split(",")[0]?.trim();
+
+  const originHeader = req.headers.origin;
+  const refererHeader = req.headers.referer;
+  const originOrReferer = originHeader || refererHeader;
+  const originProtocol = originOrReferer?.startsWith("https://")
+    ? "https"
+    : originOrReferer?.startsWith("http://")
+      ? "http"
+      : undefined;
+
+  const protocol = forwardedProto || originProtocol || req.protocol;
+  return `${protocol}://${req.get("host")}`;
+};
+
 router.get("/", async (req: Request, res: Response) => {
   const { url, ref } = req.query;
 
@@ -70,10 +89,7 @@ router.get("/", async (req: Request, res: Response) => {
 
     let m3u8Content = response.data.toString("utf-8");
 
-    // Use the incoming request protocol (http/https) instead of hardcoding https.
-    // This avoids SSL errors in local/dev environments that only serve HTTP.
-    const protocol = req.protocol;
-    const baseOrigin = `${protocol}://${req.get("host")}`;
+    const baseOrigin = getProxyBaseOrigin(req);
     const baseFetchUrl = `${baseOrigin}/fetch?url=`;
     const baseSegmentUrl = `${baseOrigin}/fetch/segment?url=`;
 
@@ -339,9 +355,7 @@ router.get("/hianime", async (req: Request, res: Response) => {
     let m3u8Content = response.data.toString("utf-8");
 
     /// i forgor 😭
-    // Use incoming protocol instead of hardcoding https to prevent SSL errors.
-    const protocol = req.protocol;
-    const baseOrigin = `${protocol}://${req.get("host")}`;
+    const baseOrigin = getProxyBaseOrigin(req);
     const baseFetchUrl = `${baseOrigin}/fetch/hianime?url=`;
     const baseSegmentUrl = `${baseOrigin}/fetch/segment?url=`;
 

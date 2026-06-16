@@ -8,22 +8,11 @@ import proxyRouter from './routes/fetch.ts';
 const app = express();
 
 app.use(express.json());
-
-const allowedOrigins = [
-  'https://portal.umarahmed.dev',
-  'https://rive.umarahmed.dev',
-  'https://localhost:3000',
-  'http://localhost:4004',
-];
+app.set('trust proxy', true);
 
 const corsOptions = {
-  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  // Testing mode: reflect any requesting origin.
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -39,7 +28,9 @@ app.use('/', indexRouter);
 // had to rename as my host does not support proxy as a route
 app.use('/fetch', proxyRouter);
 
-const PORT = process.env.PORT || 3000;
+const portArgIndex = process.argv.indexOf('--port');
+const portFromArg = portArgIndex > -1 ? process.argv[portArgIndex + 1] : undefined;
+const PORT = Number(portFromArg || process.env.PORT || 3000);
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
